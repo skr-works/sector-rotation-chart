@@ -364,7 +364,6 @@ def generate_wp_content(config, last_date_str, current_phase):
         中心から離れるほどトレンドが強く、中心に近いほど方向感がないことを意味します。</p>
     </div>
     </details>
-    <p style="text-align:right; font-size:0.8em; color:#999; margin-top:20px;">最終更新: {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
     """
     return wp_html
 
