@@ -28,9 +28,6 @@ def load_secrets():
         sys.exit(1)
 
 # セクター定義 (北西スタート・時計回り)
-# 角度は時計の12時=90度, 3時=0度, 6時=270度(-90度), 9時=180度 となる数学座標系に変換して計算します。
-# ここでは「視覚的な時計位置(clock_hour)」を定義し、計算時に変換します。
-
 SECTORS = [
     # --- 北西: 回復期 (Recovery) 9時-12時 ---
     {"code": "1625.T", "name": "電機・精密", "clock": 10.5}, # ハイテク
@@ -89,45 +86,30 @@ def get_market_data():
     # 2年分取得 (200MA計算のため)
     df = yf.download(tickers, period="2y", interval="1d", progress=False)['Close']
     
-    # データ整形でマルチインデックスを解除（yfinanceのバージョン対策）
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
     
-    # 欠損値処理 (直近のデータで埋める)
     df = df.ffill().bfill()
-    
-    # 本日のデータがあるか確認（祝日判定）
     last_date = df.index[-1]
-    today = datetime.now().date()
-    
-    # データ最終日が今日(または直近の平日)より古すぎる場合は休場とみなす等の厳密なチェックも可能だが、
-    # ここではデータが取れていることを信じて進める
     print(f"Latest data date: {last_date.strftime('%Y-%m-%d')}")
     
     return df
 
 def clock_to_rad(clock_hour):
     """時計の時針位置(0-12)を数学的なラジアン角に変換"""
-    # 12時(Top) = 90度 (pi/2)
-    # 3時(Right) = 0度 (0)
-    # 時計回りなので、角度は減っていく
-    # 変換式: angle = 90 - (hour * 30)
     degree = 90 - (clock_hour * 30)
     return math.radians(degree)
 
 def calculate_vector(df, target_date):
     """特定の日付時点での合成ベクトル(X, Y)を計算"""
-    # target_date以前のデータを取得
-    # インデックスはdatetime型であることを前提
     data_until = df[df.index <= target_date]
     
     if len(data_until) < 200:
-        return None, None # データ不足
+        return None, None
         
     current_prices = data_until.iloc[-1]
     ma200 = data_until.iloc[-200:].mean()
     
-    # 乖離率 (%)
     deviations = (current_prices - ma200) / ma200 * 100
     
     total_x = 0
@@ -141,36 +123,38 @@ def calculate_vector(df, target_date):
         strength = deviations[code]
         rad = clock_to_rad(sector["clock"])
         
-        # 成分分解
         x = strength * math.cos(rad)
         y = strength * math.sin(rad)
         
         total_x += x
         total_y += y
         
-    # スケーリング (12セクターあるので、グラフに収まりやすく調整)
-    # 単純合計だと値が大きすぎるので、セクター数で割って少しゲインを掛けるイメージ
     scale_factor = 4.0 
     return total_x / scale_factor, total_y / scale_factor
 
 def generate_chart_html(history_points, current_point, last_date_str, current_phase):
     """Chart.jsを含むHTMLコンテンツを生成"""
     
-    # データのJSON化 (JavaScriptに埋め込むため)
-    history_json = json.dumps(history_points) # [{"x":.., "y":..}, ...]
-    current_json = json.dumps([current_point]) 
+    # データのJSON化
+    history_json = json.dumps(history_points)
+    current_json = json.dumps([current_point])
+    
+    # チャートIDを一意にする（念のため）
+    chart_id = "sectorCycleChart"
     
     html = f"""
-    <h2>日本市場 景気サイクルチャート ({last_date_str})</h2>
+    <h3>日本市場 景気サイクルチャート ({last_date_str})</h3>
     <p>現在の重心は<strong>【{current_phase}】</strong>エリアにあります。<br>
     代表的な12業種の株価モメンタムを解析し、景気の循環を描画しています。</p>
-    <div style="width: 100%; max-width: 600px; margin: 0 auto;">
-        <canvas id="sectorChart"></canvas>
-    </div>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <div class="chart-container" style="position: relative; width: 100%; max-width: 600px; margin: 0 auto; aspect-ratio: 1;">
+        <canvas id="{chart_id}"></canvas>
+    </div>
+
     <script>
-    document.addEventListener("DOMContentLoaded", function() {{
-        const ctx = document.getElementById('sectorChart').getContext('2d');
+    (function() {{
+        const ctx = document.getElementById('{chart_id}').getContext('2d');
         
         // 背景エリア描画プラグイン
         const bgPlugin = {{
@@ -179,6 +163,8 @@ def generate_chart_html(history_points, current_point, last_date_str, current_ph
                 const {{ctx, chartArea: {{left, top, width, height}}, scales: {{x, y}}}} = chart;
                 const midX = x.getPixelForValue(0);
                 const midY = y.getPixelForValue(0);
+                
+                ctx.save();
                 
                 // 北西 (回復) - 左上
                 ctx.fillStyle = 'rgba(230, 247, 255, 0.4)'; 
@@ -197,12 +183,15 @@ def generate_chart_html(history_points, current_point, last_date_str, current_ph
                 ctx.font = 'bold 14px sans-serif';
                 ctx.fillStyle = 'rgba(0,0,0,0.5)';
                 ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
                 
-                // エリア名配置 (座標はざっくり中央)
+                // エリア名配置
                 ctx.fillText('回復期', (left + midX)/2, (top + midY)/2);
                 ctx.fillText('好況期', (midX + left + width)/2, (top + midY)/2);
                 ctx.fillText('後退期', (midX + left + width)/2, (midY + top + height)/2);
                 ctx.fillText('不況期', (left + midX)/2, (midY + top + height)/2);
+                
+                ctx.restore();
             }}
         }};
 
@@ -232,7 +221,7 @@ def generate_chart_html(history_points, current_point, last_date_str, current_ph
             }},
             options: {{
                 responsive: true,
-                aspectRatio: 1,
+                maintainAspectRatio: false, // container側で比率制御するためfalse
                 scales: {{
                     x: {{
                         min: -25, max: 25,
@@ -252,7 +241,7 @@ def generate_chart_html(history_points, current_point, last_date_str, current_ph
             }},
             plugins: [bgPlugin]
         }});
-    }});
+    }})();
     </script>
     <details class="wp-block-details">
     <summary>採用セクターとロジック解説</summary>
@@ -273,7 +262,7 @@ def generate_chart_html(history_points, current_point, last_date_str, current_ph
     <h4>3. 計算ロジック</h4>
     <p>各業種の「200日移動平均線からの乖離率」を物理的な『重さ』と見なし、それらが円周上で綱引きをした結果（重心）を表示しています。中心から離れるほどトレンドが強く、中心に近いほど方向感がないことを意味します。</p>
     </details>
-    <p style="font-size:0.8em; color:#888; text-align:right;">最終更新: {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
+    <p style="text-align:right; font-size:0.8em; color:#999; margin-top:20px;">最終更新: {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
     """
     return html
 
@@ -282,28 +271,18 @@ def generate_chart_html(history_points, current_point, last_date_str, current_ph
 # ==========================================
 
 def main():
-    # Secret読み込み
     config = load_secrets()
-    
-    # データ取得
     df = get_market_data()
     latest_date = df.index[-1]
     
-    # 祝日チェック (簡易): データ最終日が今日でない場合はスキップする運用も可だが
-    # ここでは「最新データがあれば更新する」スタンス
-    
-    # 1. 軌跡データの計算 (過去365日, 10日刻み)
+    # 軌跡データの計算 (過去365日, 10日刻み)
     history_points = []
     end_date = latest_date
     start_date = end_date - timedelta(days=365)
-    
-    # 10日おきの日付リスト生成
     dates = pd.date_range(start=start_date, end=end_date, freq='10D')
     
     for d in dates:
-        # データ内の直近営業日を探す
         if d not in df.index:
-            # dより前で一番近い日を探す
             past_matches = df.index[df.index <= d]
             if len(past_matches) == 0: continue
             valid_date = past_matches[-1]
@@ -314,7 +293,7 @@ def main():
         if x is not None:
             history_points.append({"x": round(x, 2), "y": round(y, 2)})
             
-    # 2. 現在地点の計算
+    # 現在地点の計算
     curr_x, curr_y = calculate_vector(df, latest_date)
     if curr_x is None:
         print("Error: Calculation failed due to insufficient data.")
@@ -322,9 +301,8 @@ def main():
 
     current_point = {"x": round(curr_x, 2), "y": round(curr_y, 2)}
     
-    # 3. フェーズ判定
+    # フェーズ判定
     current_phase = "不明"
-    # x, y の正負で判定
     c_x_sign = 1 if curr_x >= 0 else -1
     c_y_sign = 1 if curr_y >= 0 else -1
     
@@ -335,7 +313,7 @@ def main():
             
     print(f"Current Phase: {current_phase} (x={curr_x:.2f}, y={curr_y:.2f})")
 
-    # 4. HTML生成
+    # HTML生成
     html_content = generate_chart_html(
         history_points, 
         current_point, 
@@ -343,7 +321,7 @@ def main():
         current_phase
     )
     
-    # 5. WordPress更新
+    # WordPress更新
     wp_url = f"{config['WP_URL']}/wp-json/wp/v2/pages/{config['WP_PAGE_ID']}"
     auth = (config['WP_USER'], config['WP_PASSWORD'])
     
