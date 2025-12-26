@@ -1,0 +1,31 @@
+name: Sector Cycle Update
+
+on:
+  schedule:
+    # 日本時間 18:00 (JST) = UTC 09:00
+    # 平日 (月～金) のみ実行
+    - cron: '0 9 * * 1-5'
+  workflow_dispatch:
+
+jobs:
+  update-chart:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run Script
+        env:
+          # GitHub側で登録した1つのSecretを環境変数として渡す
+          WP_SECRETS_JSON: ${{ secrets.WP_SECRETS_JSON }}
+        run: python src/main.py
