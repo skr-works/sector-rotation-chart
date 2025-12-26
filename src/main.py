@@ -108,71 +108,72 @@ def calculate_vector(df, target_date):
     return total_x / scale_factor, total_y / scale_factor
 
 def generate_chart_html(history_points, current_point, last_date_str, current_phase):
-    """HTML生成 (WordPressの自動整形対策済み)"""
+    """HTML生成 (JS修正版)"""
     
-    # JSON化
     history_json = json.dumps(history_points)
     current_json = json.dumps([current_point])
     chart_id = "sectorCycleChart"
 
-    # JavaScriptコード（改行をなくして1行にするか、テンプレートリテラルを避ける）
-    # WordPressは改行を<p>タグに変えてしまうことがあるため、JSは極力圧縮して記述します。
+    # ★修正ポイント:
+    # 1. new Chart() には context('2d') ではなく、DOM要素そのものを渡す。
+    # 2. プラグイン内では、引数からではなく chart.ctx からコンテキストを取得する。
     
     script_content = f"""
     document.addEventListener("DOMContentLoaded", function() {{
-        var ctx = document.getElementById('{chart_id}');
-        if(!ctx) return;
+        var chartElement = document.getElementById('{chart_id}');
+        if(!chartElement) return;
         
-        // Chart.jsのロード待ちリトライ処理
         var checkChart = setInterval(function() {{
             if (typeof Chart !== 'undefined') {{
                 clearInterval(checkChart);
-                renderChart(ctx.getContext('2d'));
+                initChart(chartElement);
             }}
-        }}, 100);
+        }}, 200);
 
-        function renderChart(ctx2d) {{
-            // 背景描画プラグイン
+        function initChart(canvasEl) {{
             var bgPlugin = {{
                 id: 'bgPlugin',
                 beforeDraw: function(chart) {{
+                    var ctx = chart.ctx; // ★ここを修正：chartオブジェクトからctxを取り出す
                     var ca = chart.chartArea;
+                    if (!ca) return; // エリア未確定時は何もしない
+                    
                     var x = chart.scales.x;
                     var y = chart.scales.y;
                     var midX = x.getPixelForValue(0);
                     var midY = y.getPixelForValue(0);
                     
-                    ctx2d.save();
+                    ctx.save();
                     
                     // 北西 (回復)
-                    ctx2d.fillStyle = 'rgba(230, 247, 255, 0.4)';
-                    ctx2d.fillRect(ca.left, ca.top, midX - ca.left, midY - ca.top);
+                    ctx.fillStyle = 'rgba(230, 247, 255, 0.4)';
+                    ctx.fillRect(ca.left, ca.top, midX - ca.left, midY - ca.top);
                     // 北東 (好況)
-                    ctx2d.fillStyle = 'rgba(255, 240, 240, 0.4)';
-                    ctx2d.fillRect(midX, ca.top, ca.left + ca.width - midX, midY - ca.top);
+                    ctx.fillStyle = 'rgba(255, 240, 240, 0.4)';
+                    ctx.fillRect(midX, ca.top, ca.left + ca.width - midX, midY - ca.top);
                     // 南東 (後退)
-                    ctx2d.fillStyle = 'rgba(255, 251, 230, 0.4)';
-                    ctx2d.fillRect(midX, midY, ca.left + ca.width - midX, ca.top + ca.height - midY);
+                    ctx.fillStyle = 'rgba(255, 251, 230, 0.4)';
+                    ctx.fillRect(midX, midY, ca.left + ca.width - midX, ca.top + ca.height - midY);
                     // 南西 (不況)
-                    ctx2d.fillStyle = 'rgba(240, 240, 240, 0.4)';
-                    ctx2d.fillRect(ca.left, midY, midX - ca.left, ca.top + ca.height - midY);
+                    ctx.fillStyle = 'rgba(240, 240, 240, 0.4)';
+                    ctx.fillRect(ca.left, midY, midX - ca.left, ca.top + ca.height - midY);
                     
-                    // 文字
-                    ctx2d.font = 'bold 14px sans-serif';
-                    ctx2d.fillStyle = 'rgba(0,0,0,0.5)';
-                    ctx2d.textAlign = 'center';
-                    ctx2d.textBaseline = 'middle';
+                    // 文字設定
+                    ctx.font = 'bold 14px sans-serif';
+                    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
                     
-                    ctx2d.fillText('回復期', (ca.left + midX)/2, (ca.top + midY)/2);
-                    ctx2d.fillText('好況期', (midX + ca.left + ca.width)/2, (ca.top + midY)/2);
-                    ctx2d.fillText('後退期', (midX + ca.left + ca.width)/2, (midY + ca.top + ca.height)/2);
-                    ctx2d.fillText('不況期', (ca.left + midX)/2, (midY + ca.top + ca.height)/2);
+                    ctx.fillText('回復期', (ca.left + midX)/2, (ca.top + midY)/2);
+                    ctx.fillText('好況期', (midX + ca.left + ca.width)/2, (ca.top + midY)/2);
+                    ctx.fillText('後退期', (midX + ca.left + ca.width)/2, (midY + ca.top + ca.height)/2);
+                    ctx.fillText('不況期', (ca.left + midX)/2, (midY + ca.top + ca.height)/2);
                     
-                    ctx2d.restore();
+                    ctx.restore();
                 }}
             }};
 
-            new Chart(ctx2d, {{
+            new Chart(canvasEl, {{ // ★ここを修正：要素そのものを渡す
                 type: 'scatter',
                 data: {{
                     datasets: [
@@ -211,7 +212,6 @@ def generate_chart_html(history_points, current_point, last_date_str, current_ph
     }});
     """
 
-    # HTML生成
     html = f"""
     <h3>日本市場 景気サイクルチャート ({last_date_str})</h3>
     <p>現在の重心は<strong>【{current_phase}】</strong>エリアにあります。<br>
