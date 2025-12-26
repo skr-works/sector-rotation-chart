@@ -2,14 +2,15 @@ name: Sector Cycle Update
 
 on:
   schedule:
-    # 日本時間 18:00 (JST) = UTC 09:00
-    # 平日 (月～金) のみ実行
+    # 平日 18:00 (JST)
     - cron: '0 9 * * 1-5'
   workflow_dispatch:
 
 jobs:
   update-chart:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # GitHub Pagesへのデプロイに必要
     
     steps:
       - name: Checkout code
@@ -24,8 +25,15 @@ jobs:
         run: |
           pip install -r requirements.txt
 
-      - name: Run Script
+      - name: Run Script & Generate HTML
         env:
-          # GitHub側で登録した1つのSecretを環境変数として渡す
           WP_SECRETS_JSON: ${{ secrets.WP_SECRETS_JSON }}
         run: python src/main.py
+
+      # 生成された public フォルダを GitHub Pages (gh-pagesブランチ) にデプロイ
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public
+          # gh-pagesブランチにindex.htmlだけを配置します
