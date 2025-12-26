@@ -19,6 +19,14 @@
     document.addEventListener("DOMContentLoaded", function() {
         var ctx = document.getElementById('sectorCycleChart');
         
+        // 四隅に表示するセクターリスト
+        const sectorLabels = {
+            NW: ["電機・精密", "情報通信", "建設・資材"],
+            NE: ["自動車", "機械", "商社・卸売"],
+            SE: ["銀行", "金融(除)", "エネルギー"],
+            SW: ["医薬品", "食品", "小売"]
+        };
+
         var bgPlugin = {
             id: 'bgPlugin',
             beforeDraw: function(chart) {
@@ -30,29 +38,77 @@
                 var midY = y.getPixelForValue(0);
                 
                 ctx.save();
-                // 北西 (回復)
-                ctx.fillStyle = 'rgba(230, 247, 255, 0.4)';
+                
+                // --- 背景色の描画 (イメージに合わせた色) ---
+                // 北西 (回復): 芽吹き、若草色/シアン系
+                ctx.fillStyle = 'rgba(225, 250, 240, 0.5)';
                 ctx.fillRect(ca.left, ca.top, midX - ca.left, midY - ca.top);
-                // 北東 (好況)
-                ctx.fillStyle = 'rgba(255, 240, 240, 0.4)';
+                
+                // 北東 (好況): 過熱、赤/オレンジ系
+                ctx.fillStyle = 'rgba(255, 235, 235, 0.5)';
                 ctx.fillRect(midX, ca.top, ca.left + ca.width - midX, midY - ca.top);
-                // 南東 (後退)
-                ctx.fillStyle = 'rgba(255, 251, 230, 0.4)';
+                
+                // 南東 (後退): 警戒、黄色/アンバー系
+                ctx.fillStyle = 'rgba(255, 252, 230, 0.5)';
                 ctx.fillRect(midX, midY, ca.left + ca.width - midX, ca.top + ca.height - midY);
-                // 南西 (不況)
-                ctx.fillStyle = 'rgba(240, 240, 240, 0.4)';
+                
+                // 南西 (不況): 冷え込み、青紫/グレー系
+                ctx.fillStyle = 'rgba(235, 235, 250, 0.5)';
                 ctx.fillRect(ca.left, midY, midX - ca.left, ca.top + ca.height - midY);
                 
-                // 文字設定
-                ctx.font = 'bold 14px sans-serif';
-                ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                // --- 十字線の描画 ---
+                ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(midX, ca.top); ctx.lineTo(midX, ca.bottom);
+                ctx.moveTo(ca.left, midY); ctx.lineTo(ca.right, midY);
+                ctx.stroke();
+
+                // --- テキスト描画設定 ---
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 
+                // エリア名 (中央寄り)
+                ctx.font = 'bold 16px sans-serif';
+                ctx.fillStyle = 'rgba(0,0,0,0.4)';
                 ctx.fillText('回復期', (ca.left + midX)/2, (ca.top + midY)/2);
-                ctx.fillText('好況期', (midX + ca.left + ca.width)/2, (ca.top + midY)/2);
-                ctx.fillText('後退期', (midX + ca.left + ca.width)/2, (midY + ca.top + ca.height)/2);
-                ctx.fillText('不況期', (ca.left + midX)/2, (midY + ca.top + ca.height)/2);
+                ctx.fillText('好況期', (midX + ca.right)/2, (ca.top + midY)/2);
+                ctx.fillText('後退期', (midX + ca.right)/2, (midY + ca.bottom)/2);
+                ctx.fillText('不況期', (ca.left + midX)/2, (midY + ca.bottom)/2);
+
+                // --- 四隅の業種名描画 ---
+                ctx.font = '10px sans-serif';
+                ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                var pad = 10;
+                var lineHeight = 12;
+
+                // NW (左上)
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'top';
+                sectorLabels.NW.forEach((text, i) => {
+                    ctx.fillText(text, ca.left + pad, ca.top + pad + (i * lineHeight));
+                });
+
+                // NE (右上)
+                ctx.textAlign = 'right';
+                sectorLabels.NE.forEach((text, i) => {
+                    ctx.fillText(text, ca.right - pad, ca.top + pad + (i * lineHeight));
+                });
+
+                // SE (右下)
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'bottom';
+                sectorLabels.SE.slice().reverse().forEach((text, i) => {
+                    ctx.fillText(text, ca.right - pad, ca.bottom - pad - (i * lineHeight));
+                });
+
+                // SW (左下)
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'bottom';
+                sectorLabels.SW.slice().reverse().forEach((text, i) => {
+                    ctx.fillText(text, ca.left + pad, ca.bottom - pad - (i * lineHeight));
+                });
+
                 ctx.restore();
             }
         };
@@ -62,19 +118,32 @@
             data: {
                 datasets: [
                     {
+                        // 軌跡 (segmentを使ってグラデーションにする)
                         label: '軌跡',
                         data: [{"x": -1.09, "y": 0.17}, {"x": -0.14, "y": 0.39}, {"x": -0.19, "y": -0.88}, {"x": -1.29, "y": 2.82}, {"x": -1.27, "y": 2.49}, {"x": -1.65, "y": 2.65}, {"x": -1.02, "y": 1.18}, {"x": 1.17, "y": 1.28}, {"x": 2.43, "y": -1.29}, {"x": 5.06, "y": -1.36}, {"x": -2.11, "y": -1.08}, {"x": -2.69, "y": 0.94}, {"x": -0.92, "y": 2.17}, {"x": -2.81, "y": 3.49}, {"x": 1.4, "y": 4.66}, {"x": 1.73, "y": 4.2}, {"x": 3.33, "y": 3.83}, {"x": 1.79, "y": 2.58}, {"x": 0.5, "y": 4.22}, {"x": 1.54, "y": 4.41}, {"x": 1.3, "y": 4.49}, {"x": 4.82, "y": 6.07}, {"x": 3.17, "y": 3.7}, {"x": 4.19, "y": 5.7}, {"x": 5.51, "y": 1.42}, {"x": 6.92, "y": -0.44}, {"x": 4.57, "y": 1.98}, {"x": 6.25, "y": 1.36}, {"x": 5.82, "y": 1.22}, {"x": 4.36, "y": 4.7}, {"x": 2.16, "y": 6.38}, {"x": 1.61, "y": 7.73}, {"x": 0.75, "y": 5.08}, {"x": 0.32, "y": -2.76}, {"x": 1.18, "y": -3.86}, {"x": 4.83, "y": -2.38}, {"x": 5.29, "y": -3.44}],
-                        backgroundColor: 'rgba(100, 100, 100, 0.5)',
-                        borderColor: 'rgba(100, 100, 100, 0.5)',
-                        borderWidth: 1,
-                        pointRadius: 2,
+                        borderWidth: 2,
+                        pointRadius: 0, // 線のみ
                         showLine: true,
+                        segment: {
+                            borderColor: function(ctx) {
+                                // インデックスに応じて透明度または色を変える
+                                // 古い(index小) -> 薄い, 新しい(index大) -> 濃い
+                                var count = ctx.chart.data.datasets[0].data.length;
+                                var val = ctx.p1DataIndex / count;
+                                // 0.1(薄い) ～ 1.0(濃い)
+                                var alpha = 0.1 + (0.9 * val);
+                                return 'rgba(80, 80, 80, ' + alpha + ')';
+                            }
+                        },
                         order: 2
                     },
                     {
+                        // 現在地点
                         label: '現在',
                         data: [{"x": 3.97, "y": -3.63}],
                         backgroundColor: 'rgba(255, 0, 0, 1)',
+                        borderColor: '#fff',
+                        borderWidth: 2,
                         pointRadius: 8,
                         pointHoverRadius: 10,
                         order: 1
@@ -85,8 +154,16 @@
                 responsive: true,
                 maintainAspectRatio: false,
                 scales: {
-                    x: { min: -25, max: 25, grid: {drawTicks: false}, ticks: {display: false} },
-                    y: { min: -25, max: 25, grid: {drawTicks: false}, ticks: {display: false} }
+                    x: { 
+                        min: -25, max: 25, // 固定スケール
+                        grid: {display: false}, 
+                        ticks: {display: false} 
+                    },
+                    y: { 
+                        min: -25, max: 25, // 固定スケール
+                        grid: {display: false}, 
+                        ticks: {display: false} 
+                    }
                 },
                 plugins: { legend: {display: false}, tooltip: {enabled: false} }
             },
