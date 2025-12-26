@@ -403,6 +403,9 @@ def main():
 
     current_point = {"x": round(curr_x, 2), "y": round(curr_y, 2)}
     
+    # ★修正ポイント: 現在地を軌跡の最後に追加してつなげる
+    history_points.append(current_point)
+
     # フェーズ判定
     current_phase = "不明"
     c_x_sign = 1 if curr_x >= 0 else -1
