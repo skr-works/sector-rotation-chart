@@ -17,32 +17,27 @@ def load_secrets():
     if not secrets_json:
         print("Error: WP_SECRETS_JSON environment variable is not set.")
         sys.exit(1)
-    
     try:
         config = json.loads(secrets_json)
+        # URLの末尾スラッシュ補正
+        if "GITHUB_PAGES_URL" in config and not config["GITHUB_PAGES_URL"].endswith("/"):
+            config["GITHUB_PAGES_URL"] += "/"
         return config
     except json.JSONDecodeError:
-        print("Error: Failed to parse WP_SECRETS_JSON. Ensure it is valid JSON.")
+        print("Error: Failed to parse WP_SECRETS_JSON.")
         sys.exit(1)
 
 # セクター定義 (北西スタート・時計回り)
 SECTORS = [
-    # --- 北西: 回復期 (Recovery) 9時-12時 ---
     {"code": "1625.T", "name": "電機・精密", "clock": 10.5},
     {"code": "1626.T", "name": "情報通信",   "clock": 11.5},
     {"code": "1619.T", "name": "建設・資材", "clock": 9.5},
-
-    # --- 北東: 好況期 (Boom) 12時-3時 ---
     {"code": "1622.T", "name": "自動車",     "clock": 1.5},
     {"code": "1624.T", "name": "機械",       "clock": 0.5},
     {"code": "1629.T", "name": "商社・卸売", "clock": 2.5},
-
-    # --- 南東: 後退期 (Slowdown) 3時-6時 ---
     {"code": "1631.T", "name": "銀行",       "clock": 4.5},
     {"code": "1632.T", "name": "金融(除銀)", "clock": 3.5},
     {"code": "1618.T", "name": "エネルギー", "clock": 5.5},
-
-    # --- 南西: 不況期 (Recession) 6時-9時 ---
     {"code": "1621.T", "name": "医薬品",     "clock": 7.5},
     {"code": "1617.T", "name": "食品",       "clock": 6.5},
     {"code": "1630.T", "name": "小売",       "clock": 8.5},
@@ -107,122 +102,139 @@ def calculate_vector(df, target_date):
     scale_factor = 4.0 
     return total_x / scale_factor, total_y / scale_factor
 
-def generate_chart_html(history_points, current_point, last_date_str, current_phase):
-    """HTML生成 (JS修正版)"""
-    
+# ==========================================
+# 3. HTML生成 (GitHub Pages用 独立ファイル)
+# ==========================================
+
+def create_standalone_html(history_points, current_point, last_date_str):
+    """
+    GitHub Pagesで表示するための完全なHTMLファイルを生成する
+    """
     history_json = json.dumps(history_points)
     current_json = json.dumps([current_point])
-    chart_id = "sectorCycleChart"
-
-    # ★修正ポイント:
-    # 1. new Chart() には context('2d') ではなく、DOM要素そのものを渡す。
-    # 2. プラグイン内では、引数からではなく chart.ctx からコンテキストを取得する。
     
-    script_content = f"""
+    html = f"""<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sector Cycle Chart</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {{ margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #fff; }}
+        .chart-container {{ position: relative; width: 100vw; max-width: 600px; aspect-ratio: 1; }}
+        canvas {{ width: 100% !important; height: 100% !important; }}
+    </style>
+</head>
+<body>
+    <div class="chart-container">
+        <canvas id="sectorCycleChart"></canvas>
+    </div>
+    <script>
     document.addEventListener("DOMContentLoaded", function() {{
-        var chartElement = document.getElementById('{chart_id}');
-        if(!chartElement) return;
+        var ctx = document.getElementById('sectorCycleChart');
         
-        var checkChart = setInterval(function() {{
-            if (typeof Chart !== 'undefined') {{
-                clearInterval(checkChart);
-                initChart(chartElement);
+        var bgPlugin = {{
+            id: 'bgPlugin',
+            beforeDraw: function(chart) {{
+                var ctx = chart.ctx;
+                var ca = chart.chartArea;
+                var x = chart.scales.x;
+                var y = chart.scales.y;
+                var midX = x.getPixelForValue(0);
+                var midY = y.getPixelForValue(0);
+                
+                ctx.save();
+                // 北西 (回復)
+                ctx.fillStyle = 'rgba(230, 247, 255, 0.4)';
+                ctx.fillRect(ca.left, ca.top, midX - ca.left, midY - ca.top);
+                // 北東 (好況)
+                ctx.fillStyle = 'rgba(255, 240, 240, 0.4)';
+                ctx.fillRect(midX, ca.top, ca.left + ca.width - midX, midY - ca.top);
+                // 南東 (後退)
+                ctx.fillStyle = 'rgba(255, 251, 230, 0.4)';
+                ctx.fillRect(midX, midY, ca.left + ca.width - midX, ca.top + ca.height - midY);
+                // 南西 (不況)
+                ctx.fillStyle = 'rgba(240, 240, 240, 0.4)';
+                ctx.fillRect(ca.left, midY, midX - ca.left, ca.top + ca.height - midY);
+                
+                // 文字設定
+                ctx.font = 'bold 14px sans-serif';
+                ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                
+                ctx.fillText('回復期', (ca.left + midX)/2, (ca.top + midY)/2);
+                ctx.fillText('好況期', (midX + ca.left + ca.width)/2, (ca.top + midY)/2);
+                ctx.fillText('後退期', (midX + ca.left + ca.width)/2, (midY + ca.top + ca.height)/2);
+                ctx.fillText('不況期', (ca.left + midX)/2, (midY + ca.top + ca.height)/2);
+                ctx.restore();
             }}
-        }}, 200);
+        }};
 
-        function initChart(canvasEl) {{
-            var bgPlugin = {{
-                id: 'bgPlugin',
-                beforeDraw: function(chart) {{
-                    var ctx = chart.ctx; // ★ここを修正：chartオブジェクトからctxを取り出す
-                    var ca = chart.chartArea;
-                    if (!ca) return; // エリア未確定時は何もしない
-                    
-                    var x = chart.scales.x;
-                    var y = chart.scales.y;
-                    var midX = x.getPixelForValue(0);
-                    var midY = y.getPixelForValue(0);
-                    
-                    ctx.save();
-                    
-                    // 北西 (回復)
-                    ctx.fillStyle = 'rgba(230, 247, 255, 0.4)';
-                    ctx.fillRect(ca.left, ca.top, midX - ca.left, midY - ca.top);
-                    // 北東 (好況)
-                    ctx.fillStyle = 'rgba(255, 240, 240, 0.4)';
-                    ctx.fillRect(midX, ca.top, ca.left + ca.width - midX, midY - ca.top);
-                    // 南東 (後退)
-                    ctx.fillStyle = 'rgba(255, 251, 230, 0.4)';
-                    ctx.fillRect(midX, midY, ca.left + ca.width - midX, ca.top + ca.height - midY);
-                    // 南西 (不況)
-                    ctx.fillStyle = 'rgba(240, 240, 240, 0.4)';
-                    ctx.fillRect(ca.left, midY, midX - ca.left, ca.top + ca.height - midY);
-                    
-                    // 文字設定
-                    ctx.font = 'bold 14px sans-serif';
-                    ctx.fillStyle = 'rgba(0,0,0,0.5)';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    
-                    ctx.fillText('回復期', (ca.left + midX)/2, (ca.top + midY)/2);
-                    ctx.fillText('好況期', (midX + ca.left + ca.width)/2, (ca.top + midY)/2);
-                    ctx.fillText('後退期', (midX + ca.left + ca.width)/2, (midY + ca.top + ca.height)/2);
-                    ctx.fillText('不況期', (ca.left + midX)/2, (midY + ca.top + ca.height)/2);
-                    
-                    ctx.restore();
-                }}
-            }};
-
-            new Chart(canvasEl, {{ // ★ここを修正：要素そのものを渡す
-                type: 'scatter',
-                data: {{
-                    datasets: [
-                        {{
-                            label: '軌跡',
-                            data: {history_json},
-                            backgroundColor: 'rgba(100, 100, 100, 0.5)',
-                            borderColor: 'rgba(100, 100, 100, 0.5)',
-                            borderWidth: 1,
-                            pointRadius: 2,
-                            showLine: true,
-                            order: 2
-                        }},
-                        {{
-                            label: '現在',
-                            data: {current_json},
-                            backgroundColor: 'rgba(255, 0, 0, 1)',
-                            pointRadius: 8,
-                            pointHoverRadius: 10,
-                            order: 1
-                        }}
-                    ]
-                }},
-                options: {{
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {{
-                        x: {{ min: -25, max: 25, grid: {{drawTicks: false}}, ticks: {{display: false}} }},
-                        y: {{ min: -25, max: 25, grid: {{drawTicks: false}}, ticks: {{display: false}} }}
+        new Chart(ctx, {{
+            type: 'scatter',
+            data: {{
+                datasets: [
+                    {{
+                        label: '軌跡',
+                        data: {history_json},
+                        backgroundColor: 'rgba(100, 100, 100, 0.5)',
+                        borderColor: 'rgba(100, 100, 100, 0.5)',
+                        borderWidth: 1,
+                        pointRadius: 2,
+                        showLine: true,
+                        order: 2
                     }},
-                    plugins: {{ legend: {{display: false}}, tooltip: {{enabled: false}} }}
+                    {{
+                        label: '現在',
+                        data: {current_json},
+                        backgroundColor: 'rgba(255, 0, 0, 1)',
+                        pointRadius: 8,
+                        pointHoverRadius: 10,
+                        order: 1
+                    }}
+                ]
+            }},
+            options: {{
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {{
+                    x: {{ min: -25, max: 25, grid: {{drawTicks: false}}, ticks: {{display: false}} }},
+                    y: {{ min: -25, max: 25, grid: {{drawTicks: false}}, ticks: {{display: false}} }}
                 }},
-                plugins: [bgPlugin]
-            }});
-        }}
+                plugins: {{ legend: {{display: false}}, tooltip: {{enabled: false}} }}
+            }},
+            plugins: [bgPlugin]
+        }});
     }});
-    """
+    </script>
+</body>
+</html>"""
+    return html
 
-    html = f"""
+def generate_wp_content(config, last_date_str, current_phase):
+    """
+    WordPress用のHTMLを生成 (Iframe埋め込み)
+    """
+    # configからGitHub PagesのURLを取得
+    pages_url = config.get("GITHUB_PAGES_URL", "")
+    if not pages_url:
+        print("Warning: GITHUB_PAGES_URL is not set in secrets.")
+        # URLがない場合はプレースホルダーにしておく（エラーにはしない）
+        pages_url = "#"
+
+    # Iframeのキャッシュ対策としてタイムスタンプを付与
+    timestamp = datetime.now().strftime('%Y%m%d%H%M')
+    iframe_src = f"{pages_url}index.html?v={timestamp}"
+
+    wp_html = f"""
     <h3>日本市場 景気サイクルチャート ({last_date_str})</h3>
     <p>現在の重心は<strong>【{current_phase}】</strong>エリアにあります。<br>
     代表的な12業種の株価モメンタムを解析し、景気の循環を描画しています。</p>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
-    <div class="chart-container" style="position: relative; width: 100%; max-width: 600px; height: 600px; margin: 0 auto;">
-        <canvas id="{chart_id}"></canvas>
+    <div style="width: 100%; max-width: 600px; aspect-ratio: 1; margin: 0 auto; border: 1px solid #eee; overflow: hidden;">
+        <iframe src="{iframe_src}" width="100%" height="100%" style="border:none; display:block;" title="Sector Cycle Chart"></iframe>
     </div>
-
-    <script>{script_content}</script>
     <details class="wp-block-details">
     <summary>採用セクターとロジック解説</summary>
     
@@ -244,16 +256,17 @@ def generate_chart_html(history_points, current_point, last_date_str, current_ph
     </details>
     <p style="text-align:right; font-size:0.8em; color:#999; margin-top:20px;">最終更新: {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
     """
-    return html
+    return wp_html
 
 # ==========================================
-# 3. メイン処理
+# 4. メイン処理
 # ==========================================
 
 def main():
     config = load_secrets()
     df = get_market_data()
     latest_date = df.index[-1]
+    last_date_str = latest_date.strftime('%Y年%m月%d日')
     
     # 軌跡計算
     history_points = []
@@ -289,28 +302,32 @@ def main():
             current_phase = name
             break
             
-    print(f"Current Phase: {current_phase} (x={curr_x:.2f}, y={curr_y:.2f})")
+    print(f"Current Phase: {current_phase}")
 
-    html_content = generate_chart_html(
-        history_points, 
-        current_point, 
-        latest_date.strftime('%Y年%m月%d日'),
-        current_phase
-    )
+    # --- A. GitHub Pages用HTML生成と保存 ---
+    chart_html = create_standalone_html(history_points, current_point, last_date_str)
+    
+    # publicディレクトリを作成して保存
+    output_dir = "public"
+    os.makedirs(output_dir, exist_ok=True)
+    with open(os.path.join(output_dir, "index.html"), "w", encoding="utf-8") as f:
+        f.write(chart_html)
+    print(f"Generated public/index.html")
+
+    # --- B. WordPress更新 ---
+    wp_content = generate_wp_content(config, last_date_str, current_phase)
     
     wp_url = f"{config['WP_URL']}/wp-json/wp/v2/pages/{config['WP_PAGE_ID']}"
     auth = (config['WP_USER'], config['WP_PASSWORD'])
-    payload = {'content': html_content}
+    payload = {'content': wp_content}
     
     print(f"Updating WordPress Page ID: {config['WP_PAGE_ID']}...")
     try:
         response = requests.post(wp_url, json=payload, auth=auth)
         response.raise_for_status()
-        print("Success! Page updated.")
+        print("Success! WordPress updated.")
     except requests.exceptions.RequestException as e:
         print(f"Error: {e}")
-        if hasattr(e, 'response') and e.response is not None:
-            print(e.response.text)
         sys.exit(1)
 
 if __name__ == "__main__":
