@@ -19,7 +19,6 @@ def load_secrets():
         sys.exit(1)
     try:
         config = json.loads(secrets_json)
-        # URLの末尾スラッシュ補正
         if "GITHUB_PAGES_URL" in config and not config["GITHUB_PAGES_URL"].endswith("/"):
             config["GITHUB_PAGES_URL"] += "/"
         return config
@@ -27,20 +26,20 @@ def load_secrets():
         print("Error: Failed to parse WP_SECRETS_JSON.")
         sys.exit(1)
 
-# セクター定義 (北西スタート・時計回り)
+# セクター定義
 SECTORS = [
-    {"code": "1625.T", "name": "電機・精密", "clock": 10.5},
-    {"code": "1626.T", "name": "情報通信",   "clock": 11.5},
-    {"code": "1619.T", "name": "建設・資材", "clock": 9.5},
-    {"code": "1622.T", "name": "自動車",     "clock": 1.5},
-    {"code": "1624.T", "name": "機械",       "clock": 0.5},
-    {"code": "1629.T", "name": "商社・卸売", "clock": 2.5},
-    {"code": "1631.T", "name": "銀行",       "clock": 4.5},
-    {"code": "1632.T", "name": "金融(除銀)", "clock": 3.5},
-    {"code": "1618.T", "name": "エネルギー", "clock": 5.5},
-    {"code": "1621.T", "name": "医薬品",     "clock": 7.5},
-    {"code": "1617.T", "name": "食品",       "clock": 6.5},
-    {"code": "1630.T", "name": "小売",       "clock": 8.5},
+    {"code": "1625.T", "name": "電機・精密", "clock": 10.5, "area": "NW"},
+    {"code": "1626.T", "name": "情報通信",   "clock": 11.5, "area": "NW"},
+    {"code": "1619.T", "name": "建設・資材", "clock": 9.5,  "area": "NW"},
+    {"code": "1622.T", "name": "自動車",     "clock": 1.5,  "area": "NE"},
+    {"code": "1624.T", "name": "機械",       "clock": 0.5,  "area": "NE"},
+    {"code": "1629.T", "name": "商社・卸売", "clock": 2.5,  "area": "NE"},
+    {"code": "1631.T", "name": "銀行",       "clock": 4.5,  "area": "SE"},
+    {"code": "1632.T", "name": "金融(除銀)", "clock": 3.5,  "area": "SE"},
+    {"code": "1618.T", "name": "エネルギー", "clock": 5.5,  "area": "SE"},
+    {"code": "1621.T", "name": "医薬品",     "clock": 7.5,  "area": "SW"},
+    {"code": "1617.T", "name": "食品",       "clock": 6.5,  "area": "SW"},
+    {"code": "1630.T", "name": "小売",       "clock": 8.5,  "area": "SW"},
 ]
 
 PHASES = {
@@ -50,14 +49,34 @@ PHASES = {
     "不況期": {"x_sign": -1, "y_sign": -1},
 }
 
-EXCLUSION_TEXT = """
-<dl>
-<dt>鉄鋼・非鉄</dt><dd>機械・自動車と動きが重複するため。</dd>
-<dt>素材・化学</dt><dd>要因が複雑で方向感が定まりにくいため。</dd>
-<dt>不動産</dt><dd>銀行（金利感応）と似ているが変動が激しすぎるため。</dd>
-<dt>運輸・物流</dt><dd>陸運と海運が混在し、指標として不明瞭なため。</dd>
-<dt>電力・ガス</dt><dd>(※もし12種に入れるなら小売と交代だが、今回は値動きの大きい小売を優先)</dd>
-</dl>
+# 除外セクターの説明用HTML (テーブルデザイン)
+EXCLUSION_HTML = """
+<table style="width:100%; border-collapse: collapse; font-size: 0.9em; margin-top: 10px;">
+  <tr style="background-color: #f2f2f2;">
+    <th style="border: 1px solid #ddd; padding: 8px; text-align: left; width: 30%;">業種</th>
+    <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">除外理由</th>
+  </tr>
+  <tr>
+    <td style="border: 1px solid #ddd; padding: 8px; font-weight:bold;">鉄鋼・非鉄</td>
+    <td style="border: 1px solid #ddd; padding: 8px;">機械・自動車と動きが重複するため。</td>
+  </tr>
+  <tr>
+    <td style="border: 1px solid #ddd; padding: 8px; font-weight:bold;">素材・化学</td>
+    <td style="border: 1px solid #ddd; padding: 8px;">要因が複雑で方向感が定まりにくいため。</td>
+  </tr>
+  <tr>
+    <td style="border: 1px solid #ddd; padding: 8px; font-weight:bold;">不動産</td>
+    <td style="border: 1px solid #ddd; padding: 8px;">銀行（金利感応）と似ているが変動が激しすぎるため。</td>
+  </tr>
+  <tr>
+    <td style="border: 1px solid #ddd; padding: 8px; font-weight:bold;">運輸・物流</td>
+    <td style="border: 1px solid #ddd; padding: 8px;">陸運と海運が混在し、指標として不明瞭なため。</td>
+  </tr>
+  <tr>
+    <td style="border: 1px solid #ddd; padding: 8px; font-weight:bold;">電力・ガス</td>
+    <td style="border: 1px solid #ddd; padding: 8px;">今回は値動きの大きい「小売」を優先したため。</td>
+  </tr>
+</table>
 """
 
 # ==========================================
@@ -103,12 +122,15 @@ def calculate_vector(df, target_date):
     return total_x / scale_factor, total_y / scale_factor
 
 # ==========================================
-# 3. HTML生成 (GitHub Pages用 独立ファイル)
+# 3. HTML生成 (GitHub Pages用)
 # ==========================================
 
 def create_standalone_html(history_points, current_point, last_date_str):
     """
-    GitHub Pagesで表示するための完全なHTMLファイルを生成する
+    GitHub Pagesで表示するためのHTML。
+    - グラデーション軌跡
+    - 四隅の業種名表示
+    - 背景色調整
     """
     history_json = json.dumps(history_points)
     current_json = json.dumps([current_point])
@@ -134,6 +156,14 @@ def create_standalone_html(history_points, current_point, last_date_str):
     document.addEventListener("DOMContentLoaded", function() {{
         var ctx = document.getElementById('sectorCycleChart');
         
+        // 四隅に表示するセクターリスト
+        const sectorLabels = {{
+            NW: ["電機・精密", "情報通信", "建設・資材"],
+            NE: ["自動車", "機械", "商社・卸売"],
+            SE: ["銀行", "金融(除)", "エネルギー"],
+            SW: ["医薬品", "食品", "小売"]
+        }};
+
         var bgPlugin = {{
             id: 'bgPlugin',
             beforeDraw: function(chart) {{
@@ -145,29 +175,77 @@ def create_standalone_html(history_points, current_point, last_date_str):
                 var midY = y.getPixelForValue(0);
                 
                 ctx.save();
-                // 北西 (回復)
-                ctx.fillStyle = 'rgba(230, 247, 255, 0.4)';
+                
+                // --- 背景色の描画 (イメージに合わせた色) ---
+                // 北西 (回復): 芽吹き、若草色/シアン系
+                ctx.fillStyle = 'rgba(225, 250, 240, 0.5)';
                 ctx.fillRect(ca.left, ca.top, midX - ca.left, midY - ca.top);
-                // 北東 (好況)
-                ctx.fillStyle = 'rgba(255, 240, 240, 0.4)';
+                
+                // 北東 (好況): 過熱、赤/オレンジ系
+                ctx.fillStyle = 'rgba(255, 235, 235, 0.5)';
                 ctx.fillRect(midX, ca.top, ca.left + ca.width - midX, midY - ca.top);
-                // 南東 (後退)
-                ctx.fillStyle = 'rgba(255, 251, 230, 0.4)';
+                
+                // 南東 (後退): 警戒、黄色/アンバー系
+                ctx.fillStyle = 'rgba(255, 252, 230, 0.5)';
                 ctx.fillRect(midX, midY, ca.left + ca.width - midX, ca.top + ca.height - midY);
-                // 南西 (不況)
-                ctx.fillStyle = 'rgba(240, 240, 240, 0.4)';
+                
+                // 南西 (不況): 冷え込み、青紫/グレー系
+                ctx.fillStyle = 'rgba(235, 235, 250, 0.5)';
                 ctx.fillRect(ca.left, midY, midX - ca.left, ca.top + ca.height - midY);
                 
-                // 文字設定
-                ctx.font = 'bold 14px sans-serif';
-                ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                // --- 十字線の描画 ---
+                ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(midX, ca.top); ctx.lineTo(midX, ca.bottom);
+                ctx.moveTo(ca.left, midY); ctx.lineTo(ca.right, midY);
+                ctx.stroke();
+
+                // --- テキスト描画設定 ---
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 
+                // エリア名 (中央寄り)
+                ctx.font = 'bold 16px sans-serif';
+                ctx.fillStyle = 'rgba(0,0,0,0.4)';
                 ctx.fillText('回復期', (ca.left + midX)/2, (ca.top + midY)/2);
-                ctx.fillText('好況期', (midX + ca.left + ca.width)/2, (ca.top + midY)/2);
-                ctx.fillText('後退期', (midX + ca.left + ca.width)/2, (midY + ca.top + ca.height)/2);
-                ctx.fillText('不況期', (ca.left + midX)/2, (midY + ca.top + ca.height)/2);
+                ctx.fillText('好況期', (midX + ca.right)/2, (ca.top + midY)/2);
+                ctx.fillText('後退期', (midX + ca.right)/2, (midY + ca.bottom)/2);
+                ctx.fillText('不況期', (ca.left + midX)/2, (midY + ca.bottom)/2);
+
+                // --- 四隅の業種名描画 ---
+                ctx.font = '10px sans-serif';
+                ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                var pad = 10;
+                var lineHeight = 12;
+
+                // NW (左上)
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'top';
+                sectorLabels.NW.forEach((text, i) => {{
+                    ctx.fillText(text, ca.left + pad, ca.top + pad + (i * lineHeight));
+                }});
+
+                // NE (右上)
+                ctx.textAlign = 'right';
+                sectorLabels.NE.forEach((text, i) => {{
+                    ctx.fillText(text, ca.right - pad, ca.top + pad + (i * lineHeight));
+                }});
+
+                // SE (右下)
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'bottom';
+                sectorLabels.SE.slice().reverse().forEach((text, i) => {{
+                    ctx.fillText(text, ca.right - pad, ca.bottom - pad - (i * lineHeight));
+                }});
+
+                // SW (左下)
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'bottom';
+                sectorLabels.SW.slice().reverse().forEach((text, i) => {{
+                    ctx.fillText(text, ca.left + pad, ca.bottom - pad - (i * lineHeight));
+                }});
+
                 ctx.restore();
             }}
         }};
@@ -177,19 +255,32 @@ def create_standalone_html(history_points, current_point, last_date_str):
             data: {{
                 datasets: [
                     {{
+                        // 軌跡 (segmentを使ってグラデーションにする)
                         label: '軌跡',
                         data: {history_json},
-                        backgroundColor: 'rgba(100, 100, 100, 0.5)',
-                        borderColor: 'rgba(100, 100, 100, 0.5)',
-                        borderWidth: 1,
-                        pointRadius: 2,
+                        borderWidth: 2,
+                        pointRadius: 0, // 線のみ
                         showLine: true,
+                        segment: {{
+                            borderColor: function(ctx) {{
+                                // インデックスに応じて透明度または色を変える
+                                // 古い(index小) -> 薄い, 新しい(index大) -> 濃い
+                                var count = ctx.chart.data.datasets[0].data.length;
+                                var val = ctx.p1DataIndex / count;
+                                // 0.1(薄い) ～ 1.0(濃い)
+                                var alpha = 0.1 + (0.9 * val);
+                                return 'rgba(80, 80, 80, ' + alpha + ')';
+                            }}
+                        }},
                         order: 2
                     }},
                     {{
+                        // 現在地点
                         label: '現在',
                         data: {current_json},
                         backgroundColor: 'rgba(255, 0, 0, 1)',
+                        borderColor: '#fff',
+                        borderWidth: 2,
                         pointRadius: 8,
                         pointHoverRadius: 10,
                         order: 1
@@ -200,8 +291,16 @@ def create_standalone_html(history_points, current_point, last_date_str):
                 responsive: true,
                 maintainAspectRatio: false,
                 scales: {{
-                    x: {{ min: -25, max: 25, grid: {{drawTicks: false}}, ticks: {{display: false}} }},
-                    y: {{ min: -25, max: 25, grid: {{drawTicks: false}}, ticks: {{display: false}} }}
+                    x: {{ 
+                        min: -25, max: 25, // 固定スケール
+                        grid: {{display: false}}, 
+                        ticks: {{display: false}} 
+                    }},
+                    y: {{ 
+                        min: -25, max: 25, // 固定スケール
+                        grid: {{display: false}}, 
+                        ticks: {{display: false}} 
+                    }}
                 }},
                 plugins: {{ legend: {{display: false}}, tooltip: {{enabled: false}} }}
             }},
@@ -214,45 +313,55 @@ def create_standalone_html(history_points, current_point, last_date_str):
     return html
 
 def generate_wp_content(config, last_date_str, current_phase):
-    """
-    WordPress用のHTMLを生成 (Iframe埋め込み)
-    """
-    # configからGitHub PagesのURLを取得
-    pages_url = config.get("GITHUB_PAGES_URL", "")
-    if not pages_url:
-        print("Warning: GITHUB_PAGES_URL is not set in secrets.")
-        # URLがない場合はプレースホルダーにしておく（エラーにはしない）
-        pages_url = "#"
-
-    # Iframeのキャッシュ対策としてタイムスタンプを付与
+    """WordPress用のHTML (UI改善版)"""
+    pages_url = config.get("GITHUB_PAGES_URL", "#")
     timestamp = datetime.now().strftime('%Y%m%d%H%M')
     iframe_src = f"{pages_url}index.html?v={timestamp}"
+
+    # CSSスタイル定義
+    style_details = """
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 10px;
+    background-color: #f9f9f9;
+    cursor: pointer;
+    """
+    
+    style_summary = """
+    font-weight: bold;
+    color: #333;
+    outline: none;
+    """
 
     wp_html = f"""
     <h3>日本市場 景気サイクルチャート ({last_date_str})</h3>
     <p>現在の重心は<strong>【{current_phase}】</strong>エリアにあります。<br>
-    代表的な12業種の株価モメンタムを解析し、景気の循環を描画しています。</p>
-    <div style="width: 100%; max-width: 600px; aspect-ratio: 1; margin: 0 auto; border: 1px solid #eee; overflow: hidden;">
+    代表的な12業種の株価モメンタムを解析し、景気の循環を描画しています。（過去365日分の軌跡）</p>
+    <div style="width: 100%; max-width: 600px; aspect-ratio: 1; margin: 0 auto; border: 1px solid #eee; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
         <iframe src="{iframe_src}" width="100%" height="100%" style="border:none; display:block;" title="Sector Cycle Chart"></iframe>
     </div>
-    <details class="wp-block-details">
-    <summary>採用セクターとロジック解説</summary>
+    <div style="height:20px" aria-hidden="true" class="wp-block-spacer"></div>
+    <details class="wp-block-details" style="{style_details}">
+    <summary style="{style_summary}">▼ 採用セクターとロジック解説（クリックで開閉）</summary>
     
-    <h4>1. 採用セクター (12業種)</h4>
-    <p>動きが素直で、各局面を代表する以下の12業種を選抜して計算しています。</p>
-    <ul>
-        <li><strong>回復期エリア:</strong> 電機・精密、情報通信、建設・資材</li>
-        <li><strong>好況期エリア:</strong> 自動車、機械、商社・卸売</li>
-        <li><strong>後退期エリア:</strong> 銀行、金融(除銀)、エネルギー</li>
-        <li><strong>不況期エリア:</strong> 医薬品、食品、小売</li>
-    </ul>
+    <div style="margin-top: 15px; font-size: 0.95em; color: #444;">
+        <h4 style="font-size: 1.1em; border-bottom: 2px solid #eee; padding-bottom: 5px;">1. 採用セクター (12業種)</h4>
+        <p>動きが素直で、各局面を代表する以下の12業種を選抜して計算しています。</p>
+        <ul style="margin-top: 5px;">
+            <li><strong style="color:#008b8b;">回復期 (北西):</strong> 電機・精密、情報通信、建設・資材</li>
+            <li><strong style="color:#cd5c5c;">好況期 (北東):</strong> 自動車、機械、商社・卸売</li>
+            <li><strong style="color:#daa520;">後退期 (南東):</strong> 銀行、金融(除銀)、エネルギー</li>
+            <li><strong style="color:#483d8b;">不況期 (南西):</strong> 医薬品、食品、小売</li>
+        </ul>
 
-    <h4>2. 除外セクター (5業種)</h4>
-    <p>ノイズを排除するため、以下は計算に含めていません。</p>
-    {EXCLUSION_TEXT}
+        <h4 style="font-size: 1.1em; border-bottom: 2px solid #eee; padding-bottom: 5px; margin-top: 20px;">2. 除外セクター (5業種)</h4>
+        <p>ノイズを排除するため、以下は計算に含めていません。</p>
+        {EXCLUSION_HTML}
 
-    <h4>3. 計算ロジック</h4>
-    <p>各業種の「200日移動平均線からの乖離率」を物理的な『重さ』と見なし、それらが円周上で綱引きをした結果（重心）を表示しています。中心から離れるほどトレンドが強く、中心に近いほど方向感がないことを意味します。</p>
+        <h4 style="font-size: 1.1em; border-bottom: 2px solid #eee; padding-bottom: 5px; margin-top: 20px;">3. 計算ロジック</h4>
+        <p>各業種の「200日移動平均線からの乖離率」を物理的な『重さ』と見なし、それらが円周上で綱引きをした結果（重心）を表示しています。<br>
+        中心から離れるほどトレンドが強く、中心に近いほど方向感がないことを意味します。</p>
+    </div>
     </details>
     <p style="text-align:right; font-size:0.8em; color:#999; margin-top:20px;">最終更新: {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
     """
@@ -268,7 +377,7 @@ def main():
     latest_date = df.index[-1]
     last_date_str = latest_date.strftime('%Y年%m月%d日')
     
-    # 軌跡計算
+    # 軌跡計算 (365日前から10日刻み)
     history_points = []
     end_date = latest_date
     start_date = end_date - timedelta(days=365)
@@ -304,17 +413,16 @@ def main():
             
     print(f"Current Phase: {current_phase}")
 
-    # --- A. GitHub Pages用HTML生成と保存 ---
+    # GitHub Pages用HTML生成
     chart_html = create_standalone_html(history_points, current_point, last_date_str)
     
-    # publicディレクトリを作成して保存
     output_dir = "public"
     os.makedirs(output_dir, exist_ok=True)
     with open(os.path.join(output_dir, "index.html"), "w", encoding="utf-8") as f:
         f.write(chart_html)
     print(f"Generated public/index.html")
 
-    # --- B. WordPress更新 ---
+    # WordPress更新
     wp_content = generate_wp_content(config, last_date_str, current_phase)
     
     wp_url = f"{config['WP_URL']}/wp-json/wp/v2/pages/{config['WP_PAGE_ID']}"
