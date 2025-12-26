@@ -128,9 +128,6 @@ def calculate_vector(df, target_date):
 def create_standalone_html(history_points, current_point, last_date_str):
     """
     GitHub Pagesで表示するためのHTML。
-    - グラデーション軌跡
-    - 四隅の業種名表示
-    - 背景色調整
     """
     history_json = json.dumps(history_points)
     current_json = json.dumps([current_point])
@@ -176,7 +173,7 @@ def create_standalone_html(history_points, current_point, last_date_str):
                 
                 ctx.save();
                 
-                // --- 背景色の描画 (イメージに合わせた色) ---
+                // --- 背景色の描画 ---
                 // 北西 (回復): 芽吹き、若草色/シアン系
                 ctx.fillStyle = 'rgba(225, 250, 240, 0.5)';
                 ctx.fillRect(ca.left, ca.top, midX - ca.left, midY - ca.top);
@@ -193,8 +190,8 @@ def create_standalone_html(history_points, current_point, last_date_str):
                 ctx.fillStyle = 'rgba(235, 235, 250, 0.5)';
                 ctx.fillRect(ca.left, midY, midX - ca.left, ca.top + ca.height - midY);
                 
-                // --- 十字線の描画 ---
-                ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+                // --- 十字線の描画 (少し濃く) ---
+                ctx.strokeStyle = 'rgba(0,0,0,0.2)';
                 ctx.lineWidth = 1;
                 ctx.beginPath();
                 ctx.moveTo(midX, ca.top); ctx.lineTo(midX, ca.bottom);
@@ -255,19 +252,16 @@ def create_standalone_html(history_points, current_point, last_date_str):
             data: {{
                 datasets: [
                     {{
-                        // 軌跡 (segmentを使ってグラデーションにする)
+                        // 軌跡
                         label: '軌跡',
                         data: {history_json},
                         borderWidth: 2,
-                        pointRadius: 0, // 線のみ
+                        pointRadius: 0,
                         showLine: true,
                         segment: {{
                             borderColor: function(ctx) {{
-                                // インデックスに応じて透明度または色を変える
-                                // 古い(index小) -> 薄い, 新しい(index大) -> 濃い
                                 var count = ctx.chart.data.datasets[0].data.length;
                                 var val = ctx.p1DataIndex / count;
-                                // 0.1(薄い) ～ 1.0(濃い)
                                 var alpha = 0.1 + (0.9 * val);
                                 return 'rgba(80, 80, 80, ' + alpha + ')';
                             }}
@@ -292,13 +286,21 @@ def create_standalone_html(history_points, current_point, last_date_str):
                 maintainAspectRatio: false,
                 scales: {{
                     x: {{ 
-                        min: -25, max: 25, // 固定スケール
-                        grid: {{display: false}}, 
+                        min: -25, max: 25,
+                        grid: {{
+                            display: true, // グリッド表示ON
+                            color: 'rgba(0, 0, 0, 0.05)', // 薄いグレー
+                            drawTicks: false
+                        }}, 
                         ticks: {{display: false}} 
                     }},
                     y: {{ 
-                        min: -25, max: 25, // 固定スケール
-                        grid: {{display: false}}, 
+                        min: -25, max: 25,
+                        grid: {{
+                            display: true, // グリッド表示ON
+                            color: 'rgba(0, 0, 0, 0.05)', // 薄いグレー
+                            drawTicks: false
+                        }}, 
                         ticks: {{display: false}} 
                     }}
                 }},
@@ -318,7 +320,6 @@ def generate_wp_content(config, last_date_str, current_phase):
     timestamp = datetime.now().strftime('%Y%m%d%H%M')
     iframe_src = f"{pages_url}index.html?v={timestamp}"
 
-    # CSSスタイル定義
     style_details = """
     border: 1px solid #ddd;
     border-radius: 4px;
