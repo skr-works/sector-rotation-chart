@@ -24,14 +24,20 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
+          # 変更: 祝日判定用ライブラリを追加
+          pip install jpholiday
 
       - name: Run Script & Generate HTML
         env:
           WP_SECRETS_JSON: ${{ secrets.WP_SECRETS_JSON }}
-        run: python src/main.py
+        # 変更: 祝日なら実行せず、後続のデプロイもスキップするためのフラグ(SKIP_DEPLOY)を設定
+        run: |
+          python -c "import jpholiday, datetime, os, subprocess; JST=datetime.timezone(datetime.timedelta(hours=9)); is_hol = jpholiday.is_holiday(datetime.datetime.now(JST)); open(os.environ['GITHUB_ENV'], 'a').write('SKIP_DEPLOY=true\n') if is_hol else subprocess.run(['python', 'src/main.py'], check=True)"
 
       # 生成された public フォルダを GitHub Pages (gh-pagesブランチ) にデプロイ
       - name: Deploy to GitHub Pages
+        # 変更: 祝日フラグが立っている場合はこのステップを実行しない
+        if: env.SKIP_DEPLOY != 'true'
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
