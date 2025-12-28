@@ -335,7 +335,7 @@ def generate_wp_content(config, last_date_str, current_phase):
     """
 
     wp_html = f"""
-    <h3>日本市場 セクターローテーション  {last_date_str})</h3>
+    <h3>日本市場 セクターローテーション  {last_date_str}</h3>
     <p>現在の重心は<strong>【{current_phase}】</strong>エリアにあります。<br>
     代表的な12業種の株価モメンタムを解析し、過去365日分の軌跡で景気の循環を描画しています。<br>
     中心から離れるほどトレンドが強く、中心に近いほど方向感がないことを意味します。</p>
