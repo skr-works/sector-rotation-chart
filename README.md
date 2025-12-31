@@ -25,18 +25,3 @@
 ノイズを防ぐため、動きが重複する「鉄鋼・非鉄」「素材・化学」「不動産」「運輸・物流」「電力・ガス」は計算から除外しています。
 
 ---
-
-## セットアップ手順
-
-### 1. GitHub Secrets の設定
-リポジトリの `Settings` > `Secrets and variables` > `Actions` に、以下のJSONを **`WP_SECRETS_JSON`** という名前で登録してください。
-
-```json
-{
-  "WP_URL": "[https://あなたのサイトURL.com](https://あなたのサイトURL.com)",
-  "WP_USER": "ユーザー名",
-  "WP_PASSWORD": "アプリケーションパスワード",
-  "WP_PAGE_ID": "固定ページID",
-  "GITHUB_PAGES_URL": "https://[ユーザー名].github.io/[リポジトリ名]/"
-}
-```
