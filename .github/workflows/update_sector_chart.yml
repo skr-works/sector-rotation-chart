@@ -15,6 +15,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # 【修正】日付計算のため全履歴を取得する必要があります
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v4
@@ -44,6 +46,19 @@ jobs:
           publish_dir: ./public
           # gh-pagesブランチにindex.htmlだけを配置します
 
-      # 【追加】60日ルールによる停止を回避するためのKeepaliveアクション
-      - name: Keepalive Workflow
-        uses: gautamkrishnar/keepalive-workflow@v2
+      # 【修正】外部アクションを使わず、標準コマンドで60日停止を回避（エラー対策）
+      - name: Keepalive Logic
+        if: always()
+        run: |
+          # 最終更新からの経過日数を計算
+          last_commit=$(git log -1 --format=%at)
+          now=$(date +%s)
+          diff=$(( (now - last_commit) / 86400 ))
+          
+          # 50日以上経過で空コミット
+          if [ "$diff" -ge 50 ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit --allow-empty -m "Automated keepalive commit"
+            git push
+          fi
