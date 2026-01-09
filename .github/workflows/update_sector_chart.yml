@@ -43,3 +43,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./public
           # gh-pagesブランチにindex.htmlだけを配置します
+
+      # 【追加】60日ルールによる停止を回避するためのKeepaliveアクション
+      - name: Keepalive Workflow
+        uses: gautamkrishnar/keepalive-workflow@v2
