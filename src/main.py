@@ -12,7 +12,7 @@ import requests
 # 1. 設定と定数定義
 # ==========================================
 
-def load_secrets():
+def load_secrets():3
     secrets_json = os.environ.get('WP_SECRETS_JSON')
     if not secrets_json:
         print("Error: WP_SECRETS_JSON environment variable is not set.")
