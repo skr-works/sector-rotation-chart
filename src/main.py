@@ -31,15 +31,15 @@ SECTORS = [
     {"code": "1625.T", "name": "電機・精密", "clock": 10.5, "area": "NW"},
     {"code": "1626.T", "name": "情報通信",   "clock": 11.5, "area": "NW"},
     {"code": "1619.T", "name": "建設・資材", "clock": 9.5,  "area": "NW"},
-    {"code": "1622.T", "name": "自動車",     "clock": 1.5,  "area": "NE"},
-    {"code": "1624.T", "name": "機械",       "clock": 0.5,  "area": "NE"},
+    {"code": "1622.T", "name": "自動車",      "clock": 1.5,  "area": "NE"},
+    {"code": "1624.T", "name": "機械",        "clock": 0.5,  "area": "NE"},
     {"code": "1629.T", "name": "商社・卸売", "clock": 2.5,  "area": "NE"},
-    {"code": "1631.T", "name": "銀行",       "clock": 4.5,  "area": "SE"},
+    {"code": "1631.T", "name": "銀行",        "clock": 4.5,  "area": "SE"},
     {"code": "1632.T", "name": "金融(除銀)", "clock": 3.5,  "area": "SE"},
     {"code": "1618.T", "name": "エネルギー", "clock": 5.5,  "area": "SE"},
-    {"code": "1621.T", "name": "医薬品",     "clock": 7.5,  "area": "SW"},
-    {"code": "1617.T", "name": "食品",       "clock": 6.5,  "area": "SW"},
-    {"code": "1630.T", "name": "小売",       "clock": 8.5,  "area": "SW"},
+    {"code": "1621.T", "name": "医薬品",      "clock": 7.5,  "area": "SW"},
+    {"code": "1617.T", "name": "食品",        "clock": 6.5,  "area": "SW"},
+    {"code": "1630.T", "name": "小売",        "clock": 8.5,  "area": "SW"},
 ]
 
 PHASES = {
@@ -86,7 +86,8 @@ EXCLUSION_HTML = """
 def get_market_data():
     tickers = [s["code"] for s in SECTORS]
     print(f"Fetching data for {len(tickers)} sectors...")
-    df = yf.download(tickers, period="2y", interval="1d", progress=False)['Close']
+    # 修正: threads=False を追加してDBロックを回避
+    df = yf.download(tickers, period="2y", interval="1d", progress=False, threads=False)['Close']
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
     df = df.ffill().bfill()
